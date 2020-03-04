@@ -2,7 +2,6 @@ package dhbw;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.InetAddress;
@@ -10,6 +9,8 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Observable;
+import java.util.Observer;
 
 public final class TCPAppServer {
     private TCPAppServer() {}
@@ -22,6 +23,8 @@ public final class TCPAppServer {
     private static final int SERVER_PORT = 8000;
     private boolean isStopped = false;
     private List<Thread> threads = new ArrayList<>();
+
+    private Chatserver chat = new Chatserver();
 
     public void startServer() {
         try (ServerSocket listenSocket = new ServerSocket(SERVER_PORT)) {
@@ -51,13 +54,13 @@ public final class TCPAppServer {
         }
     }
 
-    public void addMessage(String nickname, String message) {
-        System.out.println(String.format("%s: %s", nickname, message));
-    }
 
-    private class WorkerRunnable implements Runnable {
+
+    private class WorkerRunnable implements Runnable, Observer {
         private Socket clientSocket = null;
         private String nickname = "";
+        private String lastSentMessage = "";
+        private OutputStream publicOutput = null;
 
         public WorkerRunnable(Socket clientSocket) {
             this.clientSocket = clientSocket;
@@ -72,16 +75,32 @@ public final class TCPAppServer {
                 output.flush();
 
                 this.nickname = inFromClient.readLine();
+                publicOutput = output;
+                chat.addObserver(this);
 
                 String clientMessage = "";
-                while (clientMessage.equals(".stop") == false) {
+                while ((clientMessage.equals(".stop") == false)) {
                     clientMessage = inFromClient.readLine();
-                    addMessage(this.nickname, clientMessage);
+                    this.lastSentMessage = chat.addMessage(this.nickname, clientMessage);
+                    chat.notifyOther();
                 }
-
             } catch (IOException e) {
-                // report exception somewhere.
-                e.printStackTrace();
+                System.out.println(String.format("Error while running: %s", e.getMessage()));
+            } finally {
+                chat.deleteObserver(this);
+            }
+        }
+
+        @Override
+        public void update(Observable o, Object arg) {
+            try {
+                String lastMessage = arg.toString();
+                if (this.lastSentMessage.equals(lastMessage) == false) {
+                    this.publicOutput.write(lastMessage.getBytes());
+                    this.publicOutput.flush();
+                }
+            } catch (IOException e) {
+                System.out.println(String.format("Error while output: %s", e.getMessage()));
             }
         }
     }
