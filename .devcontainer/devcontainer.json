@@ -11,7 +11,9 @@
 		"git.ignoreLegacyWarning": true
 	},
 	// Uncomment the next line if you want to publish any ports.
-	// "appPort": [],
+	"appPort": [
+		"8000:8000"
+	],
 	// Uncomment the next line to run commands after the container is created.
 	// "postCreateCommand": "java -version",
 	// Uncomment the next line to use a non-root user. On Linux, this will prevent
